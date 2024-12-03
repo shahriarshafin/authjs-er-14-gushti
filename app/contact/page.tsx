@@ -1,3 +1,4 @@
+// public route
 const Page = () => {
 	return (
 		<>

@@ -5,7 +5,7 @@ import { JWT } from 'next-auth/jwt';
 import Credentials from 'next-auth/providers/credentials';
 // import Google from 'next-auth/providers/google';
 
-export const BASE_PATH = '/api/auth';
+export const BASE_PATH = '/login';
 
 declare module 'next-auth' {
 	interface User {
@@ -233,9 +233,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 			return session;
 		},
 	},
-
 	pages: {
-		// signIn: '/login',
+		signIn: '/login',
 	},
-	// secret: process.env.NEXTAUTH_SECRET,
+	secret: process.env.NEXTAUTH_SECRET,
 });
