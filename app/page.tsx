@@ -2,6 +2,7 @@ import { auth } from '@/auth';
 import ProfileClient from '@/components/profile.client';
 import SignInButton from '@/components/signin-button';
 import SignOutButton from '@/components/signout-button';
+import User from '@/components/user';
 
 export default async function Home() {
 	const session = await auth();
@@ -37,13 +38,12 @@ export default async function Home() {
 
 	return (
 		<main>
-			{/* Debugging session details */}
+			<User />
+
 			<pre>{JSON.stringify(session, null, 2)}</pre>
 
-			{/* Authentication buttons */}
 			{!session ? <SignInButton /> : <SignOutButton />}
 
-			{/* Render accessible routes */}
 			{user && (
 				<div>
 					<h2>Accessible Routes:</h2>
@@ -55,7 +55,6 @@ export default async function Home() {
 						))}
 					</ul>
 
-					{/* Demonstrate specific permission checks */}
 					{user.permissions?.includes('view:comments') && (
 						<p>Has permission to view comments</p>
 					)}
@@ -65,7 +64,6 @@ export default async function Home() {
 				</div>
 			)}
 
-			{/* Profile client component */}
 			<ProfileClient session={session} />
 		</main>
 	);

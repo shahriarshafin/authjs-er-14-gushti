@@ -1,8 +1,9 @@
 import { BASE_URL } from '@/lib/constants';
+
 import NextAuth from 'next-auth';
-import 'next-auth/jwt';
+import { JWT } from 'next-auth/jwt';
 import Credentials from 'next-auth/providers/credentials';
-import GitHub from 'next-auth/providers/github';
+// import Google from 'next-auth/providers/google';
 
 export const BASE_PATH = '/api/auth';
 
@@ -26,10 +27,48 @@ declare module 'next-auth/jwt' {
 	}
 }
 
+interface Token {
+	accessToken?: string;
+	refreshToken?: string;
+	error?: string;
+}
+
+async function refreshAccessToken(token: Token): Promise<Token> {
+	try {
+		const response = await fetch(`${BASE_URL}/api/auth/refresh`, {
+			// todo perform get request
+			method: 'POST',
+			headers: {
+				Authorization: `Bearer ${token.refreshToken}`,
+			},
+		});
+		const data = await response.json();
+		const tokens = data.data;
+
+		if (!response.ok) {
+			throw tokens;
+		}
+
+		return {
+			...token,
+			accessToken: tokens.accessToken,
+			refreshToken: tokens.refreshToken ?? token.refreshToken, // Fall back to old refresh token
+		};
+	} catch (error) {
+		console.log(error);
+
+		return {
+			...token,
+			error: 'RefreshAccessTokenError',
+		};
+	}
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
 	basePath: BASE_PATH,
 	session: {
 		strategy: 'jwt',
+		maxAge: 30 * 24 * 60 * 60, // 30 days // todo: sync with backend token expiration
 	},
 	providers: [
 		Credentials({
@@ -37,57 +76,98 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 				email: {
 					label: 'Email',
 					type: 'email',
-					value: 'admin@wanderwomanbd.com',
+					value: 'user@example.com',
 					required: true,
 				},
 				password: {
 					label: 'Password',
 					type: 'password',
-					value: 'sadman3500!',
+					value: 'password123',
 					required: true,
 				},
 			},
 			async authorize(credentials) {
 				if (!credentials) return null;
 
-				const response = await fetch(`${BASE_URL}/users/auth/login`, {
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify({
-						email: credentials.email,
-						password: credentials.password,
-						credentials: 'include',
-					}),
-				});
+				try {
+					const response = await fetch(`${BASE_URL}/api/auth/login`, {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify({
+							email: credentials.email,
+							password: credentials.password,
+							credentials: 'include', // for cookies
+						}),
+					});
+					if (!response.ok) {
+						return null; // Authentication failed
+					}
+					const res = await response.json();
 
-				const data = await response.json();
-
-				const user = data.responseObject.user;
-				const accessToken = data.responseObject.token;
-				const refreshToken = data.responseObject.user.passwordResetToken;
-				return user
-					? {
-							id: user.id,
-							name: user.name,
-							email: user.email,
-							image: user.profilePic,
-							role: user.role,
-							permissions: ['view:dashboard', 'view:about', 'view:contact'],
-							accessToken,
-							refreshToken,
-					  }
-					: null;
+					const user = res.data.user;
+					const accessToken = res.data.accessToken;
+					const refreshToken = res.data.refreshToken;
+					return user
+						? {
+								id: user.id,
+								name: user.name,
+								email: user.email,
+								image: user.image,
+								role: user.role,
+								permissions: user.permissions,
+								accessToken,
+								refreshToken,
+						  }
+						: null;
+				} catch (error) {
+					console.error('Authentication error:', error);
+					return null;
+				}
 			},
 		}),
-		GitHub,
+		// Google({
+		// 	clientId: process.env.GOOGLE_CLIENT_ID!,
+		// 	clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+		// 	// This will pass the OAuth profile to the backend
+		// 	async profile(profile) {
+		// 		// Send OAuth data to backend to create/link user
+		// 		const response = await fetch(
+		// 			'http://localhost:3000/api/auth/oauth/google',
+		// 			{
+		// 				method: 'POST',
+		// 				headers: { 'Content-Type': 'application/json' },
+		// 				body: JSON.stringify({
+		// 					email: profile.email,
+		// 					name: profile.name,
+		// 					picture: profile.picture,
+		// 					provider: 'google',
+		// 					providerId: profile.sub,
+		// 				}),
+		// 			}
+		// 		);
+
+		// 		if (!response.ok) {
+		// 			throw new Error('Failed to authenticate with backend');
+		// 		}
+
+		// 		const data = await response.json();
+
+		// 		return {
+		// 			...profile,
+		// 			id: data.user.id,
+		// 			accessToken: data.accessToken,
+		// 			exp: data.exp,
+		// 		};
+		// 	},
+		// }),
 	],
 	callbacks: {
 		authorized: async ({ auth }) => {
 			return !!auth;
 		},
-		jwt: async ({ token, user }) => {
+		jwt: async ({ token, user }): Promise<JWT | null> => {
 			if (user) {
 				return {
 					...token,
@@ -95,6 +175,35 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 					refreshToken: user.refreshToken,
 					user,
 				};
+			}
+
+			// Decode the access token to get expiration
+			if (token) {
+				const accessToken = token.accessToken;
+
+				if (accessToken) {
+					const decodedToken = JSON.parse(atob(accessToken.split('.')[1]));
+					const isExpired = decodedToken.exp
+						? Math.floor(Date.now() / 1000) >= decodedToken.exp
+						: true;
+					if (isExpired) {
+						// Refresh the access token
+						const refreshedToken = await refreshAccessToken(token);
+
+						if (refreshedToken.error) {
+							return {
+								...token,
+								accessToken: undefined,
+								refreshToken: undefined,
+							};
+						}
+						return {
+							...token,
+							accessToken: refreshedToken.accessToken,
+							refreshToken: refreshedToken.refreshToken,
+						};
+					}
+				}
 			}
 
 			return token;
