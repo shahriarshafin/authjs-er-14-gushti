@@ -12,8 +12,9 @@ const User = async () => {
 	const profile = await data.json();
 
 	return (
-		<div className='bg-green-100'>
-			<h1>{JSON.stringify(profile)}</h1>
+		<div className='border bg-purple-300'>
+			<h2 className='text-lg'>Fetch - Server Side</h2>
+			<pre>{JSON.stringify(profile)}</pre>
 		</div>
 	);
 };

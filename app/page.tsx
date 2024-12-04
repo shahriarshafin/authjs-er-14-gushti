@@ -1,7 +1,7 @@
 const Page = () => {
 	return (
 		<>
-			<h1>Home</h1>
+			<h1 className='text-lg py-4'>Welcome! Let’s hope this works! 🤲</h1>
 		</>
 	);
 };
