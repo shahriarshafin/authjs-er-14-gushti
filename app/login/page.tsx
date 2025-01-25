@@ -1,6 +1,6 @@
 'use client';
 
-import { doCredentialLogin } from '@/lib/actions/';
+import { handleCredentialLogin } from '@/lib/actions/';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { FormEvent, useState } from 'react';
 
@@ -16,7 +16,7 @@ const Login = () => {
 		try {
 			const formData = new FormData(event.currentTarget);
 
-			const response = await doCredentialLogin(formData);
+			const response = await handleCredentialLogin(formData);
 
 			if (!!response.error) {
 				console.error(response.error);
